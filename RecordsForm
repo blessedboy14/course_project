@@ -1,0 +1,99 @@
+unit RecordsForm;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls;
+
+type
+  TFormRecs = class(TForm)
+    Records: TLabel;
+    ModeBox: TComboBox;
+    AskLabel: TLabel;
+    ConfirmButton: TButton;
+    procedure FormShow(Sender: TObject);
+    procedure ConfirmButtonClick(Sender: TObject);
+    procedure ModeBoxChange(Sender: TObject);
+    procedure FormClose(Sender: TObject; var Action: TCloseAction);
+  private
+    { Private declarations }
+  public
+    { Public declarations }
+  end;
+
+var
+  FormRecs: TFormRecs;
+
+implementation
+
+{$R *.dfm}
+
+function TakeStrFromFile(fName : String) : String;
+var
+    InpFile : TextFile;
+    Res,Temp : String;
+begin
+    AssignFile(InpFile,fName);
+    Res := '';
+    Reset(InpFile);
+    while not(eof(InpFile)) do
+    begin
+        Readln(Inpfile,Temp);
+        Res:= Res + Temp + #10#13;
+    end;
+    Result := Res;
+    Close(InpFile);
+end;
+
+procedure TFormRecs.ConfirmButtonClick(Sender: TObject);
+var
+    Temp : String;
+begin
+    ModeBox.Visible := False;
+    ModeBox.Enabled := False;
+    AskLabel.Visible := False;
+    ConfirmButton.Visible := False;
+    ConfirmButton.Enabled := False;
+    Records.Top := 1;
+    Records.Left := 1;
+    if ModeBox.Text = 'Новичок' then
+        Records.Caption := TakeStrFromFile('BegRecs.txt')
+    else if ModeBox.Text = 'Любитель' then
+        Records.Caption := TakeStrFromFile('MidRecs.txt')
+    else if ModeBox.Text = 'Профессионал' then
+        Records.Caption := TakeStrFromFile('HighRecs.txt');
+    ClientWidth := Records.Width + trunc(Records.Width/2) - 20;
+    ClientHeight := Records.Height - 25;
+end;
+
+procedure TFormRecs.FormClose(Sender: TObject; var Action: TCloseAction);
+begin
+    Records.Caption := '';
+    ConfirmButton.Visible := True;
+    ConfirmButton.enabled := True;
+    ModeBox.Visible := true;
+    ModeBox.Enabled := True;
+    AskLabel.Visible := True;
+    ClientWidth := 359;
+    ClientHeight := 125;
+end;
+
+procedure TFormRecs.FormShow(Sender: TObject);
+begin
+    ModeBox.Clear;
+    ModeBox.Items.Add('Профессионал');
+    ModeBox.Items.Add('Любитель');
+    ModeBox.Items.Add('Новичок');
+    ModeBox.Style := csDropDownList;
+end;
+
+procedure TFormRecs.ModeBoxChange(Sender: TObject);
+begin
+    if ModeBox.Text = '' then
+        ConfirmButton.Enabled := False
+    else
+        ConfirmButton.Enabled := True;
+end;
+
+end.
