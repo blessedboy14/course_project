@@ -7,6 +7,12 @@ uses
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.Menus, Vcl.ExtCtrls, Vcl.StdCtrls, WinForm,SpecForm,RecordsForm;
 
 type
+    TKletka = Record
+        Status : Integer;
+        Data : Integer;
+    End;
+    Pole = Array of Array of TKletka;
+    TSizeArray = Array[1..2] of Byte;
   TFormMain = class(TForm)
     MainMenu: TMainMenu;
     NewGameMenu: TMenuItem;
@@ -25,13 +31,21 @@ type
     procedure HighLevelButtonClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure TimerTimer(Sender: TObject);
+    Function CheckSide(acol,arow:integer):integer;
     procedure MainImageMouseDown(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
     procedure NewGameMenuClick(Sender: TObject);
+    procedure CompleteOpenFunc(var GamePole : Pole);
+    procedure OpenClosed(acol,arow:integer; var GamePole : Pole);
     procedure SpecialMenuClick(Sender: TObject);
     procedure RecordsFormClick(Sender: TObject);
     procedure InfoMenuClick(Sender: TObject);
+    procedure KletkaWithNum(row,col : integer);
+    function GainSize(size : Integer) : TSizeArray;
     procedure FormKeyPress(Sender: TObject; var Key: Char);
+    procedure GainMemory(var GamePole : Pole;size : Integer);
+    procedure StartPoleKletka(Canvas : TCanvas; i,j : integer);
+    procedure Flag(Canvas : TCanvas; i,j:integer);
   private
     { Private declarations }
   public
@@ -45,14 +59,6 @@ implementation
 
 {$R *.dfm}
 
-type
-    TKletka = Record
-        Status : Integer;
-        Data : Integer;
-    End;
-    Pole = Array of Array of TKletka;
-    TSizeArray = Array[1..2] of Byte;
-
 const
     BSIZE = 9;
     MSIZE = 16;
@@ -65,12 +71,12 @@ const
     H = 30;
 
 Var
-    GamePole : Pole;//Pole...
+    GamePole : Pole;
     Status, Time : Integer;
     FindedMines,MineNum,NFlag : Integer;
     IsGameEnded : Boolean;
 
-procedure GainMemory(var GamePole : Pole;size : Integer);
+procedure TFormMain.GainMemory(var GamePole : Pole;size : Integer);
 begin
     case size of
         1: SetLength(GamePole,BSize + 2, BSize + 2);
@@ -90,7 +96,7 @@ begin
     end;
 end;
 
-function GainSize(size : Integer) : TSizeArray;
+function TFormMain.GainSize(size : Integer) : TSizeArray;
 var
     Arr : TSizeArray;
 begin
@@ -123,7 +129,7 @@ var
     i, j, n, MinesNum,XSize,YSize,k : integer;
     ArrSize : TSizeArray;
 begin
-    ArrSize := GainSize(Size);
+    ArrSize := FormMain.GainSize(Size);
     XSize := ArrSize[1];
     YSize := ArrSize[2];
     MinesNum := GainMinNum(Size);
@@ -188,7 +194,7 @@ begin
     Result := IsFree;
 end;
 
-procedure StartPoleKletka(Canvas : TCanvas; i,j : integer);
+procedure TFormMain.StartPoleKletka(Canvas : TCanvas; i,j : integer);
 var
     x,y : integer;
     BitMap : TBitMap;
@@ -207,7 +213,7 @@ var
 begin
     for i := 1 to XSize do
         for j := 1 to YSize do
-            StartPoleKletka(Canvas,i,j);
+            FormMain.StartPoleKletka(Canvas,i,j);
 end;
 
 procedure TFormMain.FormCloseQuery(Sender: TObject; var CanClose: Boolean);
@@ -241,7 +247,7 @@ begin
     end;
 end;
 
-procedure KletkaWithNum(row,col : integer);//Kletka...
+procedure TFormMain.KletkaWithNum(row,col : integer);
 var
     num,x,y : integer;
     BitMap : TBitMap;
@@ -298,7 +304,7 @@ begin
     BitMap.Free;
 end;
 
-procedure Flag(Canvas : TCanvas; i,j:integer);
+procedure TFormMain.Flag(Canvas : TCanvas; i,j:integer);
 var
     BitMap : TBitMap;
     x,y: integer;
@@ -311,7 +317,7 @@ begin
     BitMap.Free;
 end;
 
-Function CheckSide(acol,arow:integer):integer;
+Function TFormMain.CheckSide(acol,arow:integer):integer;
 var
     XSize, YSize : Integer;
     Arr : TSizeArray;
@@ -331,7 +337,7 @@ begin
     if (acol=1) and (arow>1) and (arow<XSize) then result:=8;
 end;
 
-procedure CompleteOpenFunc(var GamePole : Pole);
+procedure TFormMain.CompleteOpenFunc(var GamePole : Pole);
 var
     i, j,XSize,YSize : integer;
     Arr : TSizeArray;
@@ -388,7 +394,7 @@ begin
         end;
 end;
 
-Procedure OpenClosed(acol,arow:integer; var GamePole : Pole);
+Procedure TFormMain.OpenClosed(acol,arow:integer; var GamePole : Pole);
 var
     x,y : integer;
     BitMap : TBitMap;
