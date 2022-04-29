@@ -1,0 +1,655 @@
+unit MinesForm;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtCtrls, SpecForm, Vcl.StdCtrls,
+  Vcl.Menus, Main, WinForm;
+
+type
+  TFormSpecial = class(TForm)
+    Image: TImage;
+    ConfirmBut: TButton;
+    MainMenu: TMainMenu;
+    InfoMenu: TMenuItem;
+    TimerLabel: TLabel;
+    Timer: TTimer;
+    procedure FormShow(Sender: TObject);
+    procedure ImageMouseDown(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
+    procedure InfoMenuClick(Sender: TObject);
+    procedure ConfirmButClick(Sender: TObject);
+    procedure TimerTimer(Sender: TObject);
+  private
+    { Private declarations }
+  public
+    { Public declarations }
+  end;
+
+var
+  FormSpecial: TFormSpecial;
+
+implementation
+
+{$R *.dfm}
+
+const
+    BSize = 9;
+    MSize = 16;
+    PSizeX = 30;
+    PSizeY = 16;
+    BMinesL = 6;
+    BMinesM = 12;
+    MMinesL = 32;
+    MMinesM = 44;
+    PMinesL = 85;
+    PMinesM = 106;
+    W = 30;
+    H = 30;
+
+Var
+    GamePole : Pole;
+    FindedMines,MineNum,NFlag : Integer;
+    BombCounter,Status, Time : Integer;
+    Mines : Integer;
+    IsAbleAdd, IsAbleDel, IsPlaced, IsGameEnded : Boolean;
+
+procedure showImage();
+begin
+    with FormSpecial do
+    begin
+        Image.Top:=0;
+        Image.Left := 0;
+        Image.Height := ClientHeight- 35;
+        Image.Width := clientWidth;
+    end;
+end;
+
+procedure StandNumsInPole(XSize, YSize : Integer);
+var
+    i,j,k : Integer;
+begin
+    for I := 1 to XSize do
+        for j := 1 to YSize do
+            if GamePole[i,j].Data <> 9 then
+            begin
+                k:=0;
+                if GamePole[i-1,j-1].Data = 9 then inc(k);
+                if GamePole[i-1,j].Data = 9 then inc(k);
+                if GamePole[i,j-1].Data = 9 then inc(k);
+                if GamePole[i+1,j+1].Data = 9 then inc(k);
+                if GamePole[i+1,j].Data = 9 then inc(k);
+                if GamePole[i,j+1].Data = 9 then inc(k);
+                if GamePole[i-1,j+1].Data = 9 then inc(k);
+                if GamePole[i+1,j-1].Data = 9 then inc(k);
+                GamePole[i,j].Data:= k;
+                //end
+                //else
+                    //Application.MessageBox('ОШИБКА ЕБЛАН!', 'Error');
+            end;
+end;
+
+function IsFreeCells(XSize,YSize : Integer) : Boolean;
+var
+    i,j : Integer;
+    isFree : Boolean;
+begin
+    isFree := False;
+    i := 1;
+    j:=1;
+    while (i < XSize + 1) and (not IsFree) do
+    begin
+        j := 1;
+        while (J < YSize + 1) and (not IsFree) do
+        begin
+            if (GamePole[i,j].Status = 0) and (GamePole[i,j].Data <> 9) then
+                IsFree := True;
+            Inc(J);
+        end;
+        Inc(I);
+    end;
+    Result := IsFree;
+end;
+
+procedure MakePole(var GamePole : Pole;size : Integer);
+var
+    i, j, n, XSize,YSize,k : integer;
+    ArrSize : TSizeArray;
+begin
+    ArrSize := FormMain.GainSize(Size);
+    XSize := ArrSize[1];
+    YSize := ArrSize[2];
+    n := 0;
+    for I := 0 to XSize + 1 do
+        for j := 0 to YSize + 1 do
+        begin
+            GamePole[i,j].Data := 0;
+            GamePole[i,j].Status := -2;
+        end;
+    for I := 1 to XSize do
+        for j := 1 to YSize do
+            GamePole[i,j].Status := 0;
+end;
+
+procedure ShowPole(Canvas : TCanvas;XSize,YSize : Integer);
+var
+    i, j : integer;
+begin
+    for i := 1 to XSize do
+        for j := 1 to YSize do
+            FormMain.StartPoleKletka(Canvas,i,j);
+end;
+
+procedure showBut(XSize,YSize : Integer);
+var
+    x, y : Integer;
+begin
+    x := (XSize-1)*W + 46;
+    with FormSpecial do
+    begin
+        y := Trunc(ClientWidth/2) - 100;
+        ConfirmBut.Top := x - 10;
+        ConfirmBut.Left := y;
+        ConfirmBut.Height := 27;
+        ConfirmBut.Width := 200;
+        ConfirmBut.Font.Size := 8;
+        ConfirmBut.Caption := 'Подтвердить';
+    end;
+end;
+
+procedure showTimer(XSize,YSize : Integer);
+var
+    x, y : Integer;
+begin
+    x := (XSize-1)*W + 46;
+    with FormSpecial do
+    begin
+        y := Trunc(ClientWidth/2) - 45;
+        TimerLabel.Font.Size := 15;
+        TimerLabel.Top := x - 10;
+        TimerLAbel.Left := y;
+        TimerLabel.Height := 40;
+        TimerLabel.Width := 100;
+        TimerLAbel.Caption := '00:00';
+        TimerLabel.Visible := True;
+    end;
+end;
+
+procedure LowLevel();
+var
+    Canvas : TCanvas;
+begin
+    Status :=1;BombCounter := 0;
+    Mines := 0;
+    IsAbleAdd := True;
+    IsAbleDel := False;
+    FormSpecial.Image.Picture := nil;
+    FormSpecial.ClientWidth := BSize * W + 2;
+    FormSpecial.ClientHeight := BSize * H + 38;
+    FormMain.GainMemory(GamePole,1);
+    showImage();
+    FormSpecial.Canvas.Brush.Color := rgb(32,32,32);
+    FormSpecial.Canvas.FillRect(Rect(0,0,FormSpecial.ClientWidth,FormSpecial.ClientHeight));
+    MakePole(GamePole,Status);
+    ShowPole(Canvas,BSize,BSize);
+    ShowBut(BSize,BSize);
+    FormSpecial.ConfirmBut.Visible := True;
+end;
+
+procedure MidLevel();
+var
+    Canvas : TCanvas;
+begin
+    Status :=2;BombCounter := 0;
+    Mines := 0;
+    IsAbleAdd := True;
+    IsAbleDel := False;
+    FormSpecial.Image.Picture := nil;
+    FormSpecial.ClientWidth := MSize * W + 2;
+    FormSpecial.ClientHeight := MSize * H + 38;
+    FormMain.GainMemory(GamePole,2);
+    showImage();
+    FormSpecial.Canvas.Brush.Color := rgb(32,32,32);
+    FormSpecial.Canvas.FillRect(Rect(0,0,FormSpecial.ClientWidth,FormSpecial.ClientHeight));
+    MakePole(GamePole,2);
+    ShowPole(Canvas,MSize,MSize);
+    ShowBut(MSize,MSize);
+    FormSpecial.ConfirmBut.Visible := True;
+end;
+
+procedure HighLevel();
+var
+    Canvas : TCanvas;
+begin
+    Status :=3;BombCounter := 0;
+    Mines := 0;
+    IsAbleAdd := True;
+    IsAbleDel := False;
+    FormSpecial.Image.Picture := nil;
+    FormSpecial.ClientWidth := PSizeX * W + 2;
+    FormSpecial.ClientHeight := PSizeY * H + 38;
+    FormMain.GainMemory(GamePole,3);
+    showImage();
+    FormSpecial.Canvas.Brush.Color := rgb(32,32,32);
+    FormSpecial.Canvas.FillRect(Rect(0,0,FormSpecial.ClientWidth,FormSpecial.ClientHeight));
+    MakePole(GamePole,3);
+    ShowPole(Canvas,PSizeX,PSizeY);
+    Showbut(PSizeY,PSizeX);
+    FormSpecial.ConfirmBut.Visible := True;
+end;
+
+procedure HideButton();
+begin
+    with FormSpecial do
+    begin
+        ConfirmBut.Font.Size := 1;
+        ConfirmBut.Top := ClientHeight + 50;
+        ConfirmBut.Left := ClientWidth +20;
+        ConfirmBut.Height := 2;
+        ConfirmBut.Width := 5;
+        ConfirmBut.Visible := False;
+    end;
+end;
+
+procedure HideTimer();
+begin
+    with FormSpecial do
+    begin
+        TimerLabel.Visible := False;
+        Timer.Enabled := False;
+    end;
+end;
+
+procedure LowLevelGame();
+var
+    Canvas : TCanvas;
+begin
+    HideButton();HideTimer();
+    FindedMines :=0;nFlag:=0;
+    Time := 0;
+    Status :=1;IsGameEnded := False;
+    FormSpecial.Image.Picture := nil;
+    FormSpecial.ClientWidth := BSize * W + 2;
+    FormSpecial.ClientHeight := BSize * H + 38;
+    showImage();
+    FormSpecial.Canvas.Brush.Color := rgb(32,32,32);
+    FormSpecial.Canvas.FillRect(Rect(0,0,FormSpecial.ClientWidth,FormSpecial.ClientHeight));
+    ShowPole(Canvas,BSize,BSize);
+    ShowTimer(BSize,BSize);
+end;
+
+procedure HighLevelGame();
+var
+    Canvas : TCanvas;
+begin
+    HideButton();HideTimer();
+    FindedMines :=0;nFlag:=0;
+    Time := 0;
+    Status :=3;IsGameEnded := False;
+    FormSpecial.Image.Picture := nil;
+    FormSpecial.ClientWidth := PSizeX * W + 2;
+    FormSpecial.ClientHeight := PSizeY * H + 38;
+    showImage();
+    FormSpecial.Canvas.Brush.Color := rgb(32,32,32);
+    FormSpecial.Canvas.FillRect(Rect(0,0,FormSpecial.ClientWidth,FormSpecial.ClientHeight));
+    ShowPole(Canvas,PSizeX,PSizeY);
+    ShowTimer(PSizeX,PSizeY);
+end;
+
+procedure MidLevelGame();
+var
+    Canvas : TCanvas;
+begin
+    HideButton();HideTimer();
+    FindedMines :=0;nFlag:=0;
+    Time := 0;
+    Status :=2;IsGameEnded := False;
+    FormSpecial.Image.Picture := nil;
+    FormSpecial.ClientWidth := MSize * W + 2;
+    FormSpecial.ClientHeight := MSize * H + 38;
+    showImage();
+    FormSpecial.Canvas.Brush.Color := rgb(32,32,32);
+    FormSpecial.Canvas.FillRect(Rect(0,0,FormSpecial.ClientWidth,FormSpecial.ClientHeight));
+    ShowPole(Canvas,MSize,MSize);
+    ShowTimer(MSize,MSize);
+end;
+
+procedure TFormSpecial.ConfirmButClick(Sender: TObject);
+begin
+    IsPlaced := True;
+    FormSpecial.Caption := 'Сапёр(изменённое поле)';
+    InfoMenu.Enabled := False;
+    if Status = 1 then
+    begin
+        StandNumsInPole(BSize,BSize);
+        LowLevelGame();
+    end
+    else if Status = 2 then
+    begin
+        StandNumsInPole(MSize,MSize);
+        MidLevelGame();
+    end
+    else if Status = 3 then
+    begin
+        StandNumsInPole(PSizeX,PSizeY);
+        HighLevelGame();
+    end
+end;
+
+procedure TFormSpecial.FormShow(Sender: TObject);
+begin
+    IsPlaced := False;
+    if Form1.ChooseMode.Text = 'Новичок' then
+        LowLevel()
+    else if Form1.ChooseMode.Text = 'Любитель' then
+        MidLevel()
+    else if Form1.ChooseMode.Text = 'Профессионал' then
+        HighLevel()
+    else
+        Application.MessageBox('','Неудача)');
+    FormSpecial.Caption := 'Расставьте же ваши мины!';
+    InfoMenu.Enabled := True;
+end;
+
+procedure AbleToPlaceNext();
+begin
+    case Status of
+        1:
+        begin
+            if (BombCounter >= BMinesL) and (BombCounter <= BMinesM) then
+            begin
+                FormSpecial.ConfirmBut.Enabled := True;
+                IsAbleAdd := True
+            end
+            else if BombCounter < BMinesL  then
+            begin
+                FormSpecial.ConfirmBut.Enabled := False;
+                IsAbleAdd := True
+            end
+            else if BombCounter > BMinesM then
+            begin
+                Application.MessageBox('Вы добавили максимальное число мин!','Внимание!');
+                Dec(Bombcounter);
+                IsAbleAdd := False;
+            end
+        end;
+        2:
+        begin
+            if (BombCounter >= MMinesL) and (BombCounter <= MMinesM) then
+            begin
+                FormSpecial.ConfirmBut.Enabled := True;
+                IsAbleAdd := True
+            end
+            else if BombCounter < MMinesL  then
+            begin
+                FormSpecial.ConfirmBut.Enabled := False;
+                IsAbleAdd := True
+            end
+            else if BombCounter > MMinesM then
+            begin
+                Application.MessageBox('Вы добавили максимальное число мин!','Внимание!');
+                Dec(Bombcounter);
+                IsAbleAdd := False;
+            end
+        end;
+        3:
+        begin
+            if (BombCounter >= PMinesL) and (BombCounter <= PMinesM) then
+            begin
+                FormSpecial.ConfirmBut.Enabled := True;
+                IsAbleAdd := True
+            end
+            else if BombCounter < PMinesL  then
+            begin
+                FormSpecial.ConfirmBut.Enabled := False;
+                IsAbleAdd := True
+            end
+            else if BombCounter > PMinesM then
+            begin
+                Application.MessageBox('Вы добавили максимальное число мин!','Внимание!');
+                Dec(Bombcounter);
+                IsAbleAdd := False;
+            end
+        end;
+    end;
+end;
+
+procedure AbleToDelete();
+begin
+    case Status of
+        1:
+        begin
+            if (BombCounter >= 0) then
+            begin
+                IsAbleDel := True;
+                if BombCounter >= BMinesL then
+                    FormSpecial.ConfirmBut.Enabled := True
+                else
+                    FormSpecial.ConfirmBut.Enabled := False;
+            end
+        end;
+        2:
+        begin
+            if (BombCounter >= 0) then
+            begin
+                IsAbleDel := True;
+                if BombCounter >= MMinesL then
+                    FormSpecial.ConfirmBut.Enabled := True
+                else
+                    FormSpecial.ConfirmBut.Enabled := False;
+            end
+        end;
+        3:
+        begin
+            if (BombCounter >= 0) then
+            begin
+                IsAbleDel := True;
+                if BombCounter >= PMinesL then
+                    FormSpecial.ConfirmBut.Enabled := True
+                else
+                    FormSpecial.ConfirmBut.Enabled := False;
+            end
+        end;
+    end;
+end;
+
+procedure TFormSpecial.ImageMouseDown(Sender: TObject; Button: TMouseButton;
+  Shift: TShiftState; X, Y: Integer);
+var
+    BitMap : TBitMap;
+    XSize, YSize,i,j,XCoord,YCoord,num : Integer;
+    ARr : TSizeArray;
+    TestPole : Pole;
+begin
+    Arr := FormMain.GainSize(Status);
+    XCoord := 0; YCoord := 0;
+    XSize := Arr[1];
+    YSize := Arr[2];
+    if (Button = mbLeft) and (not IsPlaced) then
+    begin
+        XCoord := Trunc(X/W) + 1;
+        YCoord := Trunc(Y/H) + 1;
+        x := (XCoord-1)* W +1;
+        y := (YCoord-1)* H +1;
+        if GamePole[XCoord,YCoord].Data = 0 then
+        begin
+            Inc(BombCounter);
+            AbleToPlaceNext();
+            if (isAbleAdd) then
+            begin
+                BitMap := TBitmap.Create;
+                BitMap.LoadFromFile('мина.bmp');
+                FormSpecial.Image.Canvas.Draw(x,y,BitMap);
+                GamePole[XCoord,YCoord].Data := 9;
+                Inc(Mines);
+            end;
+        end;
+    end
+    else if (Button = mbRight) and (not IsPlaced) then
+    begin
+        XCoord := Trunc(X/W) + 1;
+        YCoord := Trunc(Y/H) + 1;
+        x := (XCoord-1)* W +1;
+        y := (YCoord-1)* H +1;
+        if GamePole[XCoord,YCoord].Data = 9 then
+        begin
+            Dec(BombCounter);
+            AbleToDelete();
+            if (isAbleDel) then
+            begin
+                BitMap := TBitmap.Create;
+                BitMap.LoadFromFile('закрытая.bmp');
+                FormSpecial.Image.Canvas.Draw(x-1,y-1,BitMap);
+                GamePole[XCoord,YCoord].Data := 0;
+                Dec(Mines);
+            end;
+        end
+        else
+            Application.MessageBox('В данной клетке мины нет','Ошибка!');
+    end
+    else if (Button = mbRight) and (IsPlaced) and (not IsGameEnded) then
+    begin
+        Timer.Enabled := True;
+        XCoord := Trunc(X/W) + 1;
+        YCoord := Trunc(Y/H) + 1;
+        if GamePole[XCoord,YCoord].Status = 0 then
+        begin
+            FormMain.Flag(Canvas,XCoord,YCoord);
+            Inc(nFlag);
+            if GamePole[XCoord,YCoord].Data = 9 then
+                Inc(FindedMines);
+            GamePole[XCoord,YCoord].Status := 2;
+            if (nFlag = MineNum) then
+            begin
+                Timer.Enabled := False;
+                IsGameEnded := true;
+                Application.MessageBox(PWideChar('Поздравляем! Вы прошли карту особого режима за время: ' + TimerLabel.Caption),'Победа!');
+            end;
+            if not IsFreeCells(XSize,YSize) then
+            begin
+                Timer.Enabled := False;
+                Application.MessageBox(PWideChar('Поздравляем! Вы прошли карту особого режима за время: ' + TimerLabel.Caption),'Победа!');
+            end;
+        end
+        else if GamePole[XCoord,YCoord].Status = 2 then
+        begin
+            GamePole[XCoord,YCoord].Status := 0;
+            BitMap := TBitmap.Create;
+            dec(NFlag);
+            if GamePole[XCoord,YCoord].Data = 9 then dec(FindedMines);
+            BitMap.LoadFromFile('закрытая.bmp');
+            FormSpecial.Image.Canvas.Draw(x,y,BitMap);
+        end;
+    end
+    else if (Button = mbLeft) and (IsPlaced) and (not IsGameEnded) then
+    begin
+        Timer.Enabled := True;
+        TestPole := GamePole;
+        XCoord := Trunc(X/W) + 1;
+        YCoord := Trunc(Y/H) + 1;
+        if GamePole[XCoord,YCoord].Status = 0 then
+        begin
+            if GamePole[XCoord,YCoord].Data = 9 then
+            begin
+                for i := 1 to XSize do
+                    for j := 1 to YSize do
+                    begin
+                        if GamePole[i,j].Data <> 9 then
+                        begin
+                            BitMap := TBitmap.Create;
+                            BitMap.LoadFromFile('закрытая.bmp');
+                            x := (i-1)* W +1;
+                            y := (j-1)* H +1;
+                            FormSpecial.Canvas.Draw(x,y,BitMap);
+                        end
+                        else
+                        begin
+                            BitMap := TBitmap.Create;
+                            BitMap.LoadFromFile('мина.bmp');
+                            x := (i-1)* W +1;
+                            y := (j-1)* H +1;
+                            FormSpecial.Canvas.Draw(x,y,BitMap);
+                        end
+                    end;
+                Timer.Enabled := False;
+                Time := 0;
+                IsGameEnded := True;
+                Application.MessageBox('Вы проиграли!', 'Конец игры');
+                ConfirmBut.Enabled := False;
+                TimerLabel.Visible := False;
+                Sleep(650);
+                FormSpecial.Close;
+            end
+            else if GamePole[XCoord,YCoord].Data = 0 then
+            begin
+                FormMain.OpenClosed(YCoord,XCoord,GamePole);
+                FormMain.CompleteOpenFunc(GamePole);
+                if not IsFreeCells(XSize,YSize) then
+                begin
+                    Timer.Enabled := False;
+                    Application.MessageBox(PWideChar('Поздравляем! Вы прошли карту особого режима за время: ' + TimerLabel.Caption),'Победа!');
+                end;
+            end
+            else
+            begin
+                FormMain.KletkaWithNum(XCoord,YCoord);
+                if not IsFreeCells(XSize,YSize) then
+                begin
+                    Timer.Enabled := False;
+                    Application.MessageBox(PWideChar('Поздравляем! Вы прошли карту особого режима за время: ' + TimerLabel.Caption),'Победа!');
+                end;
+            end;
+        end;
+    end;
+end;
+
+procedure TFormSpecial.InfoMenuClick(Sender: TObject);
+const
+    Mes1 = 'На данной форме вы можете проставить мины для того,' + #10#13;
+    Mes2 = 'по нажатию кнопки запустилась игра "Сапёр" с' + #10#13;
+    Mes3 = 'пользовательским полем.' + #10#13;
+    Mes4 = 'Левая кнопка мыши добавляет мину, а правая - удаляет' + #10#13;
+    Mes5 = 'Количество допустимых мин: ' + #10#13 + '1. Новичок - 6-12' + #10#13 +
+    '2. Любитель - 32-44' + #10#13 + '3. Профессионал - 85-106';
+begin
+    Application.MessageBox(Mes1 + Mes2 + Mes3 + Mes4 + Mes5,'Справка');
+end;
+
+procedure TFormSpecial.TimerTimer(Sender: TObject);
+begin
+    Inc(Time);
+    if time < 60 then
+    begin
+        if time < 10 then
+            TimerLabel.Caption := '00:0' + IntToStr(Time)
+        else
+            TimerLabel.Caption := '00:' + IntToStr(Time)
+    end
+    else if time mod 60 = 0 then
+    begin
+        if (time div 60) < 10 then
+            TimerLabel.Caption := '0' + IntToStr(time div 60) + ':00'
+        else
+            TimerLabel.Caption := IntToStr(time div 60) + ':00'
+    end
+    else
+    begin
+        if time mod 60 < 10 then
+        begin
+            if time div 60 < 10 then
+                TimerLabel.Caption := '0' + IntToStr(time div 60) + ':0' + IntToStr(time mod 60)
+            else
+                TimerLabel.Caption := IntToStr(time div 60) + ':0' + IntToStr(time mod 60)
+        end
+        else
+        begin
+            if time div 60 < 10 then
+                TimerLabel.Caption := '0' + IntToStr(time div 60) + ':' + IntToStr(time mod 60)
+            else
+                TimerLabel.Caption := IntToStr(time div 60) + ':' + IntToStr(time mod 60)
+        end;
+    end;
+end;
+
+end.
