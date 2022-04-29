@@ -1,0 +1,75 @@
+unit SpecForm;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.Menus;
+
+type
+  TForm1 = class(TForm)
+    ChooseMode: TComboBox;
+    InfoLabel: TLabel;
+    MainMenu: TMainMenu;
+    InfoMenu: TMenuItem;
+    ConfirmBut: TButton;
+    procedure FormShow(Sender: TObject);
+    procedure InfoMenuClick(Sender: TObject);
+    procedure FormCloseQuery(Sender: TObject; var CanClose: Boolean);
+    procedure ConfirmButClick(Sender: TObject);
+    procedure ChooseModeChange(Sender: TObject);
+  private
+    { Private declarations }
+  public
+    { Public declarations }
+  end;
+
+var
+  Form1: TForm1;
+
+implementation
+
+{$R *.dfm}
+
+uses Main, MinesForm;
+
+procedure TForm1.ChooseModeChange(Sender: TObject);
+begin
+    if ChooseMode.Text <> '' then
+        ConfirmBut.Enabled := True
+    else
+        ConfirmBut.Enabled := False;
+end;
+
+procedure TForm1.ConfirmButClick(Sender: TObject);
+begin
+    FormSpecial.ShowModal;
+end;
+
+procedure TForm1.FormCloseQuery(Sender: TObject; var CanClose: Boolean);
+begin
+    FormMain.Show;
+    FormMain.Enabled := True;
+end;
+
+procedure TForm1.FormShow(Sender: TObject);
+begin
+    ChooseMode.Clear;
+    ChooseMode.Items.Add('Профессионал');
+    ChooseMode.Items.Add('Любитель');
+    ChooseMode.Items.Add('Новичок');
+    ChooseMode.Style := csDropDownList;
+    ConfirmBut.Enabled := False;
+end;
+
+procedure TForm1.InfoMenuClick(Sender: TObject);
+const
+    mes1 = 'Вы выбираете один из шаблонов поля для того, чтобы' + #10#13;
+    mes2 = 'потом заполнить этот шаблон минами, допустимое количество' + #10#13;
+    mes3 = 'которых соответствующее: ' + #10#13 + '1. Новичок - 6-12' + #10#13 +
+    '2. Любитель - 32-44' + #10#13 + '3. Профессионал - 85-106';
+begin
+    Application.MessageBox(mes1+mes2+mes3,'Справка');
+end;
+
+end.
