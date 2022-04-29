@@ -1,0 +1,742 @@
+unit Main;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.Menus, Vcl.ExtCtrls, Vcl.StdCtrls, WinForm,SpecForm,RecordsForm;
+
+type
+  TFormMain = class(TForm)
+    MainMenu: TMainMenu;
+    NewGameMenu: TMenuItem;
+    LowLevelButton: TMenuItem;
+    MiddleLevelButton: TMenuItem;
+    HighLevelButton: TMenuItem;
+    Timer: TTimer;
+    TimerLabel: TLabel;
+    MainImage: TImage;
+    SpecialMenu: TMenuItem;
+    RecordsForm: TMenuItem;
+    InfoMenu: TMenuItem;
+    procedure LowLevelButtonClick(Sender: TObject);
+    procedure FormCloseQuery(Sender: TObject; var CanClose: Boolean);
+    procedure MiddleLevelButtonClick(Sender: TObject);
+    procedure HighLevelButtonClick(Sender: TObject);
+    procedure FormCreate(Sender: TObject);
+    procedure TimerTimer(Sender: TObject);
+    procedure MainImageMouseDown(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
+    procedure NewGameMenuClick(Sender: TObject);
+    procedure SpecialMenuClick(Sender: TObject);
+    procedure RecordsFormClick(Sender: TObject);
+    procedure InfoMenuClick(Sender: TObject);
+    procedure FormKeyPress(Sender: TObject; var Key: Char);
+  private
+    { Private declarations }
+  public
+    { Public declarations }
+  end;
+
+var
+  FormMain: TFormMain;
+
+implementation
+
+{$R *.dfm}
+
+type
+    TKletka = Record
+        Status : Integer;
+        Data : Integer;
+    End;
+    Pole = Array of Array of TKletka;
+    TSizeArray = Array[1..2] of Byte;
+
+const
+    BSIZE = 9;
+    MSIZE = 16;
+    PSIZEX = 30;
+    PSIZEY = 16;
+    BMINES = 10;
+    MMINES = 40;
+    PMINES = 99;
+    W = 30;
+    H = 30;
+
+Var
+    GamePole : Pole;//Pole...
+    Status, Time : Integer;
+    FindedMines,MineNum,NFlag : Integer;
+    IsGameEnded : Boolean;
+
+procedure GainMemory(var GamePole : Pole;size : Integer);
+begin
+    case size of
+        1: SetLength(GamePole,BSize + 2, BSize + 2);
+        2: SetLength(GamePole,MSize + 2, MSize + 2);
+        3: SetLength(GamePole,PSizeX + 2, PSizeY + 2);
+    end;
+end;
+
+function GainMinNum(size : Integer) : Integer;
+begin
+    case size of
+        1: GainMinNum := BMines;
+        2: GainMinNum := MMines;
+        3: GainMinNum := PMines;
+        else
+            GainMinNum := -10;
+    end;
+end;
+
+function GainSize(size : Integer) : TSizeArray;
+var
+    Arr : TSizeArray;
+begin
+    Arr[1]:= 0;
+    Arr[2]:= 0;
+    case size of
+        1:
+        begin
+            Arr[1] := BSize;
+            Arr[2] := BSize;
+            GainSize := Arr;
+        end;
+        2:
+        begin
+            Arr[1] := MSize;
+            Arr[2] := MSize;
+            GainSize := Arr;
+        end;
+        3:
+        begin
+            Arr[1] := PSizeX;
+            Arr[2] := PSizeY;
+            GainSize := Arr;
+        end;
+    end;
+end;
+
+procedure MakePole(var GamePole : Pole;size : Integer;var MineNum : Integer);
+var
+    i, j, n, MinesNum,XSize,YSize,k : integer;
+    ArrSize : TSizeArray;
+begin
+    ArrSize := GainSize(Size);
+    XSize := ArrSize[1];
+    YSize := ArrSize[2];
+    MinesNum := GainMinNum(Size);
+    MineNum := MinesNum;
+    n := 0;
+    for I := 0 to XSize + 1 do
+        for j := 0 to YSize + 1 do
+        begin
+            GamePole[i,j].Data := 0;
+            GamePole[i,j].Status := -2;
+        end;
+    repeat
+        i := Random(XSize) + 1;
+        j := Random(YSize) + 1;
+        if GamePole[i,j].Data <> 9 then
+        begin
+            GamePole[i,j].Data := 9;
+            n:= n + 1;
+        end;
+    until(n > MinesNum - 1);
+    for I := 1 to XSize do
+        for j := 1 to YSize do
+            if GamePole[i,j].Data <> 9 then
+            begin
+                k:=0;
+                if GamePole[i-1,j-1].Data = 9 then inc(k);
+                if GamePole[i-1,j].Data = 9 then inc(k);
+                if GamePole[i,j-1].Data = 9 then inc(k);
+                if GamePole[i+1,j+1].Data = 9 then inc(k);
+                if GamePole[i+1,j].Data = 9 then inc(k);
+                if GamePole[i,j+1].Data = 9 then inc(k);
+                if GamePole[i-1,j+1].Data = 9 then inc(k);
+                if GamePole[i+1,j-1].Data = 9 then inc(k);
+                GamePole[i,j].Data:= k;
+            end;
+    for I := 1 to XSize do
+        for j := 1 to YSize do
+            GamePole[i,j].Status := 0;
+end;
+
+function IsFreeCells(XSize,YSize : Integer) : Boolean;
+var
+    i,j, Counter: Integer;
+    isFree : Boolean;
+begin
+    isFree := False;
+    i := 1;
+    Counter := 0;
+    while (i < XSize + 1) and (not IsFree) do
+    begin
+        j := 1;
+        while (J < YSize + 1) and (not IsFree) do
+        begin
+            if (GamePole[i,j].Status = 0) and (GamePole[i,j].Data <> 9) then
+                IsFree := True;
+            Inc(J);
+        end;
+        Inc(I);
+    end;
+    if NFlag > 10 then
+        IsFree := True;
+    Result := IsFree;
+end;
+
+procedure StartPoleKletka(Canvas : TCanvas; i,j : integer);
+var
+    x,y : integer;
+    BitMap : TBitMap;
+begin
+    x := (i-1)*W + 2;
+    y := (j-1)*H + 2;
+    BitMap := TBitmap.Create;
+    BitMap.LoadFromFile('закрытая.bmp');
+    FormMain.MainImage.Canvas.Draw(x-1,y-1,BitMap);
+    BitMap.Free;
+end;
+
+procedure ShowPole(Canvas : TCanvas;XSize,YSize : Integer);
+var
+    i, j : integer;
+begin
+    for i := 1 to XSize do
+        for j := 1 to YSize do
+            StartPoleKletka(Canvas,i,j);
+end;
+
+procedure TFormMain.FormCloseQuery(Sender: TObject; var CanClose: Boolean);
+var
+    WND: HWND;
+    lpCaption, lpText: PChar;
+    Tip: Integer;
+    isTimer : Boolean;
+begin
+    WND := FormMain.Handle;
+    lpCaption := 'Выход';
+    lpText := 'Вы уверены, что хотите выйти?';
+    if Timer.Enabled then
+    begin
+        Timer.Enabled := False;
+        isTimer := True;
+    end;
+    Tip := MB_YESNO + MB_ICONINFORMATION + MB_DEFBUTTON2;
+    case MessageBox(WND, lpText, lpCaption, Tip) of
+        IDYES :
+        begin
+            Finalize(GamePole);
+            CanClose := True;
+        end;
+        IDNO :
+        begin
+            if isTimer then
+                Timer.Enabled := True;
+            CanClose := False;
+        end;
+    end;
+end;
+
+procedure KletkaWithNum(row,col : integer);//Kletka...
+var
+    num,x,y : integer;
+    BitMap : TBitMap;
+begin
+    x := (row-1)* W + 2;
+    y := (col-1)* H + 2;
+    num := GAmePole[row,col].DAta;
+    GamePole[row,col].Status := 4;
+    BitMap := TBitMap.Create;
+    case num of
+        1:
+        begin
+            BitMap.LoadFromFile('1.bmp');
+            FormMain.MainImage.Canvas.Draw(x,y,BitMap);
+        end;
+        2:
+        begin
+            BitMap.LoadFromFile('2.bmp');
+            FormMain.MainImage.Canvas.Draw(x,y,BitMap);
+        end;
+        3:
+        begin
+            BitMap.LoadFromFile('3.bmp');
+            FormMain.MainImage.Canvas.Draw(x,y,BitMap);
+        end;
+        4:
+        begin
+            BitMap.LoadFromFile('4.bmp');
+            FormMain.MainImage.Canvas.Draw(x,y,BitMap);
+        end;
+        5:
+        begin
+            BitMap.LoadFromFile('5.bmp');
+            FormMain.MainImage.Canvas.Draw(x,y,BitMap);
+        end;
+        6:
+        begin
+            BitMap.LoadFromFile('6.bmp');
+            FormMain.MainImage.Canvas.Draw(x,y,BitMap);
+        end;
+        7:
+        begin
+            BitMap.LoadFromFile('7.bmp');
+            FormMain.MainImage.Canvas.Draw(x,y,BitMap);
+        end;
+        8:
+        begin
+            BitMap.LoadFromFile('8.bmp');
+            FormMain.MainImage.Canvas.Draw(x,y,BitMap);
+        end
+        else
+            Application.MessageBox('CRITICAL ERROR', 'Error');
+    end;
+    BitMap.Free;
+end;
+
+procedure Flag(Canvas : TCanvas; i,j:integer);
+var
+    BitMap : TBitMap;
+    x,y: integer;
+begin
+    x := (i-1)* W +2;
+    y := (j-1)* H +2;
+    BitMap := TBitmap.Create;
+    BitMap.LoadFromFile('флаг.bmp');//где константа
+    FormMain.MainImage.Canvas.Draw(x,y,BitMap);
+    BitMap.Free;
+end;
+
+Function CheckSide(acol,arow:integer):integer;
+var
+    XSize, YSize : Integer;
+    Arr : TSizeArray;
+begin
+    result:=500;
+    Arr := GainSize(Status);
+    XSize := Arr[1];
+    YSize := Arr[2];
+    if (acol>1) and (acol<YSize) and (arow>1) and (arow<XSize) then result:=0;
+    if (acol=1) and (arow=XSize) then result:=1;
+    if (acol>1) and (acol<YSize) and (arow=XSize) then result:=2;
+    if (acol=YSize) and (arow=XSize) then result:=3;
+    if (acol=YSize) and (arow>1) and (arow<XSize) then result:=4;
+    if (acol=YSize) and (arow=1) then result:=5;
+    if (acol>1) and (acol<YSize) and (arow=1) then result:=6;//прорбелы между присваиваниями
+    if (acol=1) and (arow=1) then result:=7;
+    if (acol=1) and (arow>1) and (arow<XSize) then result:=8;
+end;
+
+procedure CompleteOpenFunc(var GamePole : Pole);
+var
+    i, j,XSize,YSize : integer;
+    Arr : TSizeArray;
+begin
+    Arr := GainSize(Status);
+    XSize := Arr[1];
+    YSize := Arr[2];
+    for I := 1 to XSize do
+        for j := 1 to YSize do
+        begin
+            if (Gamepole[i,j].Status = -1) then
+            begin
+                if (GamePole[i + 1,j].Status = 0) and (GamePole[i + 1, j].Data > 0) then
+                begin
+                    GamePole[i,j].Status := 4;
+                    KletkaWithNum(i+1,j);
+                end;
+                if (GamePole[i + 1,j + 1].Status = 0) and (GamePole[i + 1, j + 1].Data > 0) then
+                begin
+                    GamePole[i,j].Status := 4;
+                    KletkaWithNum(i+1,j + 1);
+                end;
+                if (GamePole[i + 1,j - 1].Status = 0) and (GamePole[i + 1, j - 1].Data > 0) then
+                begin
+                    GamePole[i,j].Status := 4;
+                    KletkaWithNum(i+1,j - 1);
+                end;
+                if (GamePole[i,j + 1].Status = 0) and (GamePole[i, j + 1].Data > 0) then
+                begin
+                    GamePole[i,j].Status := 4;
+                    KletkaWithNum(i,j + 1);
+                end;
+                if (GamePole[i,j - 1].Status = 0) and (GamePole[i, j - 1].Data > 0) then
+                begin
+                    GamePole[i,j].Status := 4;
+                    KletkaWithNum(i,j - 1);
+                end;
+                if (GamePole[i - 1 ,j - 1].Status = 0) and (GamePole[i - 1, j - 1].Data > 0) then
+                begin
+                    GamePole[i,j].Status := 4;
+                    KletkaWithNum(i-1,j - 1);
+                end;
+                if (GamePole[i - 1,j + 1].Status = 0) and (GamePole[i - 1, j + 1].Data > 0) then
+                begin
+                    GamePole[i,j].Status := 4;
+                    KletkaWithNum(i-1,j + 1);
+                end;
+                if (GamePole[i - 1,j].Status = 0) and (GamePole[i - 1, j].Data > 0) then
+                begin
+                    GamePole[i,j].Status := 4;
+                    KletkaWithNum(i-1,j);
+                end;
+            end;
+        end;
+end;
+
+Procedure OpenClosed(acol,arow:integer; var GamePole : Pole);
+var
+    x,y : integer;
+    BitMap : TBitMap;
+    Arr : TSizeArray;
+begin
+    if (GamePole[arow,acol].Data=0) and (GamePole[arow,acol].Status = 0)  then
+    begin
+        BitMap := TBitMap.Create;
+        x := (arow-1)* W +1;
+        y := (acol-1)* H +1;
+        BitMap.LoadFromFile('чисто.bmp');
+        FormMain.MainImage.Canvas.Draw(x,y,BitMap);
+        BitMap.Free;
+        GamePole[arow,acol].Status := -1;
+        case CheckSide(acol,arow) of
+            0:
+            begin
+                OpenClosed((acol),(arow-1),GAmePole);
+                OpenClosed((acol+1),(arow),GAmePole);
+                OpenClosed((acol),(arow+1),GAmePole);
+                OpenClosed((acol-1),(arow),GAmePole);
+            end;
+            1:
+            begin
+                OpenClosed((acol),(arow-1),GAmePole);
+                OpenClosed((acol+1),(arow),GAmePole);
+            end;
+            2:
+            begin
+                OpenClosed((acol),(arow-1),GAmePole);
+                OpenClosed((acol+1),(arow),GAmePole);
+                OpenClosed((acol-1),(arow),GAmePole);
+            end;
+            3:
+            begin
+                OpenClosed((acol),(arow-1),GAmePole);
+                OpenClosed((acol-1),(arow),GAmePole);
+            end;
+            4:                                                                                                            //две большие буквы подряд                                      //две большие буквы подряд
+            begin
+                OpenClosed((acol),(arow-1),GAmePole);
+                OpenClosed((acol),(arow+1),GAmePole);
+                OpenClosed((acol-1),(arow),GAmePole);                                                                                                                      //две большие буквы подряд
+            end;                                                              //две большие буквы подряд
+            5:
+            begin                                           //две большие буквы подряд
+                OpenClosed((acol),(arow+1),GAmePole);                                                                                    //две большие буквы подряд
+                OpenClosed((acol-1),(arow),GAmePole);
+            end;
+            6:
+            begin                                                                                     //две большие буквы подряд
+                OpenClosed((acol+1),(arow),GAmePole);
+                OpenClosed((acol),(arow+1),GAmePole);                                                                                                 //две большие буквы подряд
+                OpenClosed((acol-1),(arow),GAmePole);
+            end;
+            7:
+            begin
+                OpenClosed((acol+1),(arow),GAmePole);//две большие буквы подряд
+                OpenClosed((acol),(arow+1),GAmePole);//две большие буквы подряд
+            end;
+            8:                                                                                                                                   //две большие буквы подряд
+            begin
+                OpenClosed((acol),(arow-1),GAmePole);//две большие буквы подряд
+                OpenClosed((acol+1),(arow),GAmePole);                          //две большие буквы подряд
+                OpenClosed((acol),(arow+1),GAmePole);                                                    //две большие буквы подряд
+            end;
+        end;
+    end;
+end;
+
+procedure TFormMain.FormCreate(Sender: TObject);
+begin
+    IsGameEnded := False;
+    ClientWidth := BSIZE * W + 2;
+    ClientHeight := BSIZE * H + 42;//магическое число
+    LowLevelButton.Click;
+end;
+
+procedure TFormMain.FormKeyPress(Sender: TObject; var Key: Char); //мне нравится когда волосатые мужики обмазываются маслом
+var
+    isTimer : Boolean;
+begin
+    if Timer.Enabled then
+        isTimer := True//с маленькой буквы
+    else
+        isTimer := False;
+    if (Key = ' ') and (isTimer) then
+    begin
+        MainImage.Enabled := FAlse;
+        Timer.Enabled := False
+    end
+    else if (Key = ' ') and (not isTimer) then
+    begin
+         TimerTimer(Sender);
+         timer.Enabled := true;
+         MainImage.Enabled := True;
+    end;
+end;
+
+procedure showTimer(XSize,YSize : Integer);
+var
+    x, y : Integer;
+begin
+    x := (XSize-1)*W + 46;
+    with FormMain do
+    begin
+        y := Trunc(ClientWidth/2) - 45;
+        TimerLabel.Font.Size := 15;
+        TimerLabel.Top := x - 10;
+        TimerLAbel.Left := y;
+        TimerLabel.Height := 40;
+        TimerLabel.Width := 70;
+        TimerLAbel.Caption := '00:00';
+    end;
+end;
+
+procedure showImage();
+begin
+    with FormMain do
+    begin
+        MainImage.Top:=0;
+        MainImage.Left := 0;
+        MainImage.Height := ClientHeight- 35;
+        MainImage.Width := clientWidth;
+    end;
+end;
+
+procedure TFormMain.MiddleLevelButtonClick(Sender: TObject);
+var
+    Canvas : TCanvas;
+begin
+    MainImage.Picture := nil;
+    Status := 0;FindedMines :=0;nFlag:=0;
+    Time := 0;IsGameEnded := False;
+    FormMain.Canvas.Brush.Color := rgb(32,32,32);
+    FormMain.Canvas.FillRect(Rect(0,0,ClientWidth,ClientHeight));
+    ClientWidth := MSize * W + 2;
+    ClientHeight := MSize * H + 38;
+    showImage();
+    GainMemory(GamePole,2);
+    MakePole(GamePole,2,MineNum);
+    ShowPole(Canvas,MSize,MSize);
+    Status :=2;
+    ShowTimer(MSize,MSize);
+end;
+
+procedure TFormMain.NewGameMenuClick(Sender: TObject);
+begin
+    Timer.Enabled := False;
+end;
+
+procedure TFormMain.RecordsFormClick(Sender: TObject);
+begin
+    Timer.Enabled := False;
+    FormRecs.ShowModal;
+end;
+
+procedure TFormMain.SpecialMenuClick(Sender: TObject);
+begin
+    FormMain.Hide;
+    Form1.Show;
+    FormMain.Enabled := False;
+    Timer.Enabled := False;
+end;
+
+procedure TFormMain.HighLevelButtonClick(Sender: TObject);
+var
+    Canvas : TCanvas;
+begin
+    MainImage.Picture := nil;
+    Status := 0;FindedMines :=0;nFlag := 0; //три хуйни в одной строке
+    Time := 0;IsGameEnded := False; //две хуйни в одной строке
+    ClientWidth := pSizeX * W + 2;
+    ClientHeight := PSizeY * H + 38;
+    showImage();
+    FormMain.Canvas.Brush.Color := rgb(32,32,32); //магические числа
+    FormMain.Canvas.FillRect(Rect(0,0,ClientWidth,ClientHeight));
+    GainMemory(GamePole,3);
+    MakePole(GamePole,3,MineNum);
+    ShowPole(Canvas,PSizeX,PSizeY);
+    ShowTimer(PSIzeY,PSizeX);
+    Status := 3;
+end;
+
+procedure TFormMain.MainImageMouseDown(Sender: TObject; Button: TMouseButton;
+  Shift: TShiftState; X, Y: Integer);
+var
+    BitMap : TBitMap;
+    XSize, YSize,i,j,XCoord,YCoord,temp : Integer;
+    ARr : TSizeArray;
+begin
+    Arr := GainSize(Status);
+    XSize := Arr[1];
+    YSize := Arr[2];
+    if (Button = mbRight) and (not IsGameEnded) then
+    begin
+        Timer.Enabled := True;
+        XCoord := Trunc(X/W) + 1;
+        YCoord := Trunc(Y/H) + 1;
+        if GamePole[XCoord,YCoord].Status = 0 then
+        begin
+            Flag(Canvas,XCoord,YCoord);
+            if GamePole[XCoord,YCoord].Data = 9 then
+                Inc(FindedMines);
+            GamePole[XCoord,YCoord].Status := 2;
+            Inc(NFlag);
+            if (FindedMines = MineNum) and (NFlag < 11) then
+            begin
+                Timer.Enabled := False;
+                IsGameEnded := true;
+                FormWin.ShowModal;
+            end;
+            if not IsFreeCells(XSize,YSize) then
+            begin
+                Timer.Enabled := False;
+                IsGameEnded := true;
+                FormWin.ShowModal;
+            end;
+        end
+        else if GamePole[XCoord,YCoord].Status = 2 then
+        begin
+            GamePole[XCoord,YCoord].Status := 0;
+            BitMap := TBitmap.Create;
+            if GamePole[XCoord,YCoord].Data = 9 then dec(FindedMines);
+            dec(NFlag);
+            BitMap.LoadFromFile('закрытая.bmp');
+            x := (XCoord-1)* W +2;
+            y := (YCoord-1)* H +2;
+            FormMain.MainImage.Canvas.Draw(x,y,BitMap);
+            BitMap.Free;
+        end
+    end
+    else if (Button = mbLeft) and (not IsGameEnded) then
+    begin
+        Timer.Enabled := True;
+        XCoord := Trunc(X/W) + 1;
+        YCoord := Trunc(Y/H) + 1;
+        if GamePole[XCoord,YCoord].Status = 0 then
+        begin
+            if GamePole[XCoord,YCoord].Data = 9 then
+            begin
+                for i := 1 to XSize do
+                    for j := 1 to YSize do
+                    begin
+                        if GamePole[i,j].Data <> 9 then
+                        begin
+                            BitMap := TBitmap.Create;
+                            BitMap.LoadFromFile('закрытая.bmp');
+                            x := (i-1)* W +1;
+                            y := (j-1)* H +1;
+                            FormMain.MainImage.Canvas.Draw(x,y,BitMap);
+                            BitMap.Free;
+                        end
+                        else
+                        begin
+                            BitMap := TBitmap.Create;
+                            BitMap.LoadFromFile('мина.bmp');
+                            x := (i-1)* W +1;
+                            y := (j-1)* H +1;
+                            FormMain.MainImage.Canvas.Draw(x,y,BitMap);
+                            BitMap.Free;
+                        end
+                    end;
+                Timer.Enabled := False;
+                Time := 0;
+                IsGameEnded := True;
+                Application.MessageBox('Вы проиграли!', 'Конец игры');
+            end
+            else if GamePole[XCoord,YCoord].Data = 0 then
+            begin
+                OpenClosed(YCoord,XCoord,GamePole);
+                CompleteOpenFunc(GamePole);
+                CompleteOpenFunc(GamePole);
+                CompleteOpenFunc(GamePole);
+                if not IsFreeCells(XSize,YSize) then
+                begin
+                    Timer.Enabled := False;
+                    FormWin.ShowModal;
+                end;
+            end
+            else
+            begin
+                GamePole[XCoord,YCoord].Status := 4;
+                KletkaWithNum(XCoord,YCoord);
+                if not IsFreeCells(XSize,YSize) then
+                begin
+                    Timer.Enabled := False;
+                    FormWin.ShowModal;
+                end;
+            end;
+        end
+    end;
+end;
+
+procedure TFormMain.InfoMenuClick(Sender: TObject);
+const
+    mes1 = 'СПРАВКА К ИГРЕ "САПЁР"' + #10#13 + #10#13; //сначала 13 потом 10
+    rul1 = 'ПРАВИЛА' + #10#13;
+    rul2 = 'Начальное игровое поле скрывает под собой мины, пустые клетки и клетки' + #10#13
+    + 'с цифрами, которые обозначают, сколько мин соседи для данной клетки.' + #10#13
+    + 'Чтобы победить нужно найти все мины, при этом не взорвавшись ни на одной' + #10#13 + #10#13;
+    mes2 = 'Игра построена на нажатиях мыши: ' + #10#13;
+    mes3 = '1. При нажатии левой кнопки мыши, открывается клетка под курсором.' + #10#13;
+    mes4 = '2. При нажатии правой кнопки мыши ставится/убирается флаг под курсором.' + #10#13 + #10#13;
+    mes5 = 'Также при нажатии пробела таймер останавливается в ожидании следующего клика.' + #10#13;
+var
+    Info : PWideChar;
+begin
+    Timer.Enabled := FAlse;
+    Info := mes1 + rul1 + rul2 + mes2 + mes3 + mes4 + mes5;
+    Application.MessageBox(Info,'Справка');
+end;
+
+procedure TFormMain.LowLevelButtonClick(Sender: TObject);
+var
+    Canvas : TCanvas;
+begin
+    Status := 1;
+    FindedMines :=0;
+    nFlag := 0;
+    Time := 0;
+    IsGameEnded := False;
+    ClientWidth := BSize * W + 2;
+    ClientHeight := BSize * H + 38;
+    showImage();
+    showTimer(BSize,BSize);
+    GainMemory(GamePole,Status);
+    MakePole(GamePole,Status,MineNum);
+    ShowPole(Canvas,BSize,BSize);
+end;
+
+procedure TFormMain.TimerTimer(Sender: TObject);
+begin
+    Inc(Time);
+    if time mod 60 < 10 then
+    begin
+        if time div 60 < 10 then
+            TimerLabel.Caption := '0' + IntToStr(time div 60) + ':0' + IntToStr(time mod 60)
+        else
+            TimerLabel.Caption := IntToStr(time div 60) + ':0' + IntToStr(time mod 60)
+    end
+    else
+    begin
+        if time div 60 < 10 then//
+            TimerLabel.Caption := '0' + IntToStr(time div 60) + ':' + IntToStr(time mod 60)
+        else
+            TimerLabel.Caption := IntToStr(time div 60) + ':' + IntToStr(time mod 60)
+    end;
+end;
+
+end.
