@@ -1,0 +1,320 @@
+unit WinForm;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.Menus,List,Elem;
+
+type
+  TFormWin = class(TForm)
+    WinLabel: TLabel;
+    Label1: TLabel;
+    NickEdit: TEdit;
+    SubmitButton: TButton;
+    MainMenu: TMainMenu;
+    InfoMenu: TMenuItem;
+    procedure NickEditKeyPress(Sender: TObject; var Key: Char);
+    procedure SubmitButtonClick(Sender: TObject);
+    procedure NickEditKeyDown(Sender: TObject; var Key: Word;
+      Shift: TShiftState);
+    procedure NickEditChange(Sender: TObject);
+    procedure FormCloseQuery(Sender: TObject; var CanClose: Boolean);
+    procedure InfoMenuClick(Sender: TObject);
+  private
+    { Private declarations }
+  public
+    { Public declarations }
+  end;
+
+var
+  FormWin: TFormWin;
+
+implementation
+
+{$R *.dfm}
+
+uses Main;
+
+type
+    TData = Record
+        Time : String;
+        NickName : String;
+    End;
+
+const
+    BSize = 9;
+    MSize = 16;
+    PSizeX = 30;
+    PSizeY = 16;
+    W = 30;
+    H = 30;
+    SECONDS = 2;
+    MINUTES = 1;
+
+procedure TFormWin.FormCloseQuery(Sender: TObject; var CanClose: Boolean);
+begin
+    NickEdit.Text := '';
+    FormMain.Show;
+end;
+
+procedure TFormWin.InfoMenuClick(Sender: TObject);
+const
+    mes1 = 'Введённый вами ник-ней может не записаться в файл рекордов,' + #10#13;
+    mes2 = 'так как ваше время может не войти в топ-10 записанных в' + #10#13;
+    mes3 = 'файле имён, поэтому постарайтесь выбить лучшее время!!!' + #10#13;
+begin
+    Application.MessageBox(mes1 + mes2 + mes3, 'Справка');
+end;
+
+procedure TFormWin.NickEditChange(Sender: TObject);
+begin
+    if Length(NickEdit.TExt) > 0 then
+        SubmitButton.Enabled := True;
+end;
+
+procedure TFormWin.NickEditKeyDown(Sender: TObject; var Key: Word;
+  Shift: TShiftState);
+begin
+    if (ssShift in Shift) and (Key = VK_INSERT) then Abort;
+end;
+
+procedure TFormWin.NickEditKeyPress(Sender: TObject; var Key: Char);
+begin
+    if (Length(NickEdit.TExt) > 0) and(NickEdit.Text[Length(NickEdit.Text)] = ' ') and (Key = ' ') then
+        Key := #0;
+    if Length(NickEdit.Text) > 25 then
+        Key := #0;
+end;
+
+function TakePlayersArr(FileName : String) : TArr;
+var
+    RecsFile : TextFile;
+    NewArr : TArr;
+    TEmp : String;
+    Count,i : Integer;
+    StringL : TStringList;
+begin
+    AssignFile(RecsFile, FileName);
+    Reset(RecsFile);
+    Count := 0;
+    Readln(RecsFile);
+    Readln(RecsFile);
+    Readln(RecsFile);
+    StringL := TStringList.Create;
+    while not(eof(RecsFile)) do
+    begin
+        Readln(RecsFile,Temp);
+        if (Temp <> '') and (Temp <> ' ') then
+            Inc(Count);
+    end;
+    SetLength(NewArr,Count);
+    Close(RecsFile);
+    AssignFile(RecsFile, FileName);
+    Reset(RecsFile);
+    Count := 0;
+    Readln(RecsFile);
+    Readln(RecsFile);
+    Readln(RecsFile);
+    while not(eof(RecsFile)) do
+    begin
+        StringL := TStringList.Create;
+        StringL.Delimiter := ' ';
+        Readln(RecsFile,Temp);
+        StringL.DelimitedText := Temp;
+        if StringL.Count = 3 then
+        begin
+            NewArr[Count].NickName := Trim(StringL[1]);
+            NewArr[Count].Time := Trim(StringL[2]);
+        end
+        else
+        begin
+            NewArr[Count].NickName := '';
+            for i := 1 to StringL.Count - 2 do
+                NewArr[Count].NickName := NewArr[Count].NickName + StringL[i];
+            NewArr[Count].Time := Trim(StringL[StringL.Count - 1]);
+        end;
+        Inc(Count);
+    end;
+    Close(Recsfile);
+    TakePlayersArr := NewArr;
+end;
+
+function TimeToInt(Time : String; St : Integer) : Integer;
+var
+    res : Integer;
+begin
+    Trim(Time);
+    if st = 1 then
+        res := StrToInt(Time[1] + Time[2])
+    else
+        res := StrToInt(Time[4] + Time[5]);
+    TimeToInt := res;
+end;
+
+procedure WriteBackToFile(FileName : String;St : Integer;List : TList);
+var
+    RecsFile : TextFile;
+    I : Integer;
+    TEmp : TNode;
+    Str : String;
+begin
+    AssignFile(RecsFile,FileName);
+    Rewrite(RecsFile);
+    if st = 1 then
+    begin
+        Writeln(RecsFile, #9#9#9#9'Рекорды режима новичок');
+        Writeln(RecsFile, 'Мировой рекорд : 0.728 с');
+    end
+    else if st = 2 then
+    begin
+        Writeln(RecsFile, #9#9#9#9'Рекорды режима любитель');
+        Writeln(RecsFile, 'Мировой рекорд : 00:08 с');
+    end
+    else
+    begin
+        Writeln(RecsFile, #9#9#9#9'Рекорды режима профессионал');
+        Writeln(RecsFile, 'Мировой рекорд : 00:30 с');
+    end;
+    Writeln(RecsFile, 'Локальные рекорды:');
+    Temp := List.GetHead();
+    i := 0;
+    while Temp <> nil do
+    begin
+        if I < 10 then
+        begin
+            Str := IntToStr(I + 1) + '. ' + Temp.GetNick() + ' ' + TEmp.GetTime();
+            Writeln(RecsFile,Str);
+            Temp := TEmp.GetNext();
+        end;
+        inc(i);
+    end;
+    Close(RecsFile);
+end;
+
+{function ArrSort(Arr : TArr) : TArr;
+var
+    i,j,tempSecs, tempMins : Integer;
+    nextSecs,nextMins : Integer;
+    c : TPlayer;
+begin
+    if Length(Arr) >= 2 then
+        for j := 0 to Length(Arr) - 1 do
+            for i := 0 to Length(Arr) - 2 do
+            begin
+                tempSecs := TimeToInt(Arr[i].Time,SECONDS);
+                tempMins := TimeToInt(Arr[i].Time,MINUTES);
+                nextSecs:= TimeToInt(Arr[i + 1].Time,SECONDS);
+                nextMins := TimeToInt(Arr[i + 1].Time,MINUTES);
+                if (tempMins > nextMins) then
+                begin
+                    c := Arr[i];
+                    Arr[i] := Arr[i + 1];
+                    Arr[i + 1] := c;
+                end
+                else if (tempMins = nextMins) and (tempSecs > nextSecs) then
+                begin
+                    c := Arr[i];
+                    Arr[i] := Arr[i + 1];
+                    Arr[i + 1] := c;
+                end
+            end;
+    ArrSort := Arr;
+end;}
+
+procedure SortDesc( var List : TList);
+var
+    Temp, ToSwap : TNode;
+    Flag : Boolean;
+    Data : TData;
+    TSecs,TMins,NSecs,NMins : Integer;
+begin
+    if List.GetHead().GetNext() = nil then
+        Exit;
+    repeat
+        Flag := False;
+        Temp := List.GetHead();
+        while Temp.GetNext() <> nil do
+        begin
+            TSecs := TimeToInt(Temp.GetTime(),SECONDS);
+            TMins := TimeToInt(Temp.GetTime(),MINUTES);
+            NSecs := TimeToInt(Temp.GetNext().GetTime(),SECONDS);
+            NMins := TimeToInt(Temp.GetNext().GetTime(),MINUTES);
+            if TMins > NMins then
+            begin
+                Data.NickName := Temp.GetNick();
+                Data.Time := Temp.GetTime();
+                Temp.SetTime(Temp.GetNext().GetTime());
+                Temp.SetNick(Temp.GetNext().GetNick());
+                Temp.GetNext().SetTime(Data.Time);
+                Temp.GetNext().SetNick(Data.NickName);
+                Flag := True;
+            end
+            else if (TMins = NMins) and (TSecs > NSecs) then
+            begin
+                Data.NickName := Temp.GetNick();
+                Data.Time := Temp.GetTime();
+                Temp.SetTime(Temp.GetNext().GetTime());
+                Temp.SetNick(Temp.GetNext().GetNick());
+                Temp.GetNext().SetTime(Data.Time);
+                Temp.GetNext().SetNick(Data.NickName);
+                Flag := True;
+            end;
+            Temp := Temp.GetNext();
+        end;
+    until not Flag;
+end;
+
+procedure TFormWin.SubmitButtonClick(Sender: TObject);
+var
+    PlayersArr : TArr;
+    Position,i : Integer;
+    NewGuy : TPlayer;
+    List : Tlist;
+    Temp : TNode;
+begin
+    if (FormMain.ClientWidth = BSize * W + 2) and (FormMain.ClientHeight = BSize * H + 38) then
+        PlayersArr := TakePlayersArr('BegRecs.txt')
+    else if (FormMain.ClientWidth = MSize * W + 2) and (FormMain.ClientHeight = MSize * H + 38) then
+        PlayersArr := TakePlayersArr('MidRecs.txt')
+    else if (FormMain.ClientWidth = PSizeX * W + 2) and (FormMain.ClientHeight = PSizeY * H + 38) then
+        PlayersArr := TakePlayersArr('HighRecs.txt')
+    else
+        Application.MessageBox('Что-то пошло не так','Успех!');
+    NewGuy.NickName := NickEdit.Text;
+    NewGuy.Time := FormMain.TimerLabel.Caption;
+    SetLength(PlayersArr, Length(PlayersArr) + 1);
+    PlayersArr[Length(PlayersArr) - 1] := NewGuy;
+    List := TList.Create;
+    List.BuildList(PlayersArr);
+    SortDesc(List);
+    i:= 0;
+    Temp := List.GetHead();
+    while Temp <> nil do
+    begin
+        if (Newguy.NickName = Temp.GetNick()) and (Newguy.Time = Temp.GetTime()) then
+            position := i + 1;
+        Temp := Temp.GetNext();
+        inc(i);
+    end;
+    if (FormMain.ClientWidth = BSize * W + 2) and (FormMain.ClientHeight = BSize * H + 38) then
+        writeBackToFile('BegRecs.txt', 1,List)
+    else if (FormMain.ClientWidth = MSize * W + 2) and (FormMain.ClientHeight = MSize * H + 38) then
+        writeBackToFile('MidRecs.txt', 2,List)
+    else if (FormMain.ClientWidth = PSizeX * W + 2) and (FormMain.ClientHeight = PSizeY * H + 38) then
+        writeBackToFile('HighRecs.txt',3,List)
+    else
+        Application.MessageBox('Что-то пошло не так','Успех!');
+    if position < 11 then
+    begin
+        FormWin.Close;
+        Application.MessageBox(PWideChar('Ваш результат был записан в файл!' + #10#13 + 'Ваша позиция :' + IntToStr(position)),'Успех!')
+    end
+    else
+    begin
+        FormWin.Close;
+        Application.MessageBox('Ваш результат не был записан, так как не входит в топ-10','Результат')
+    end;
+end;
+
+end.
